@@ -19,8 +19,9 @@ func main() {
 		Handler: serveMux,
 	}
 	apiCfg := apiConfig{}
+	apiCfg.fileserverHits.Store(0)
 
-	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
+	serveMux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
@@ -42,14 +43,16 @@ func main() {
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	cfg.fileserverHits.Add(1)
-	return next
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		cfg.fileserverHits.Store(cfg.fileserverHits.Add(1))
+		next.ServeHTTP(w, req)
+	})
 }
 
 func (cfg *apiConfig) handlerCounter(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, fmt.Sprintf("%v", cfg.fileserverHits.Load()))
+	_, err := io.WriteString(w, fmt.Sprintf("Hits: %v", cfg.fileserverHits.Load()))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
