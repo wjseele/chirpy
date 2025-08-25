@@ -23,8 +23,8 @@ func main() {
 
 	serveMux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("GET /api/healthz", handlerHealthz)
-	serveMux.HandleFunc("GET /api/metrics", apiCfg.handlerCounter)
-	serveMux.HandleFunc("POST /api/reset", apiCfg.handlerReset)
+	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerCounter)
+	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	err := server.ListenAndServe()
 	if err != nil {
@@ -51,9 +51,17 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func (cfg *apiConfig) handlerCounter(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	content := fmt.Sprintf(`
+		<html>
+		  <body>
+		    <h1>Welcome, Chirpy Admin</h1>
+		    <p>Chirpy has been visited %d times!</p>
+		  </body>
+		</html>
+		`, cfg.fileserverHits.Load())
 	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, fmt.Sprintf("Hits: %v", cfg.fileserverHits.Load()))
+	_, err := io.WriteString(w, content)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
