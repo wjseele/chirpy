@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
 )
 
@@ -36,14 +37,48 @@ func main() {
 	}
 }
 
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(code)
+	_, err := io.WriteString(w, msg)
+	if err != nil {
+		log.Printf("Error in the responder: %s", err)
+		return
+	}
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+	w.Write(dat)
+}
+
+func badWordFilter(s string) string {
+	bodyWords := strings.Split(s, " ")
+	for i := range bodyWords {
+		switch strings.ToLower(bodyWords[i]) {
+		case "kerfuffle", "sharbert", "fornax":
+			bodyWords[i] = "****"
+		}
+	}
+	cleanedBody := strings.Join(bodyWords, " ")
+	return cleanedBody
+}
+
 func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 	type chirpPost struct {
 		Body string `json:"body"`
 	}
 
 	type chirpResponse struct {
-		Error string `json:"error"`
-		Valid bool   `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
+		Error       string `json:"error"`
+		Valid       bool   `json:"valid"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -54,14 +89,7 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 			Error: fmt.Sprint(err),
 			Valid: false,
 		}
-		dat, err := json.Marshal(resp)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(500)
-		w.Write(dat)
+		respondWithJSON(w, 500, resp)
 		return
 	}
 
@@ -70,28 +98,16 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 			Error: "Chirp is too long",
 			Valid: false,
 		}
-		dat, err := json.Marshal(resp)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		w.Write(dat)
+		respondWithJSON(w, 400, resp)
 		return
 	}
 
+	cleanedBody := badWordFilter(post.Body)
+
 	resp := chirpResponse{
-		Valid: true,
+		CleanedBody: cleanedBody,
 	}
-	dat, err := json.Marshal(resp)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(dat)
+	respondWithJSON(w, 200, resp)
 }
 
 func handlerHealthz(w http.ResponseWriter, req *http.Request) {
