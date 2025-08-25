@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -25,12 +27,71 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", handlerHealthz)
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerCounter)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 
 	err := server.ListenAndServe()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
+	type chirpPost struct {
+		Body string `json:"body"`
+	}
+
+	type chirpResponse struct {
+		Error string `json:"error"`
+		Valid bool   `json:"valid"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	post := chirpPost{}
+	err := decoder.Decode(&post)
+	if err != nil {
+		resp := chirpResponse{
+			Error: fmt.Sprint(err),
+			Valid: false,
+		}
+		dat, err := json.Marshal(resp)
+		if err != nil {
+			log.Printf("Error marshalling JSON: %s", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write(dat)
+		return
+	}
+
+	if len(post.Body) > 140 {
+		resp := chirpResponse{
+			Error: "Chirp is too long",
+			Valid: false,
+		}
+		dat, err := json.Marshal(resp)
+		if err != nil {
+			log.Printf("Error marshalling JSON: %s", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		w.Write(dat)
+		return
+	}
+
+	resp := chirpResponse{
+		Valid: true,
+	}
+	dat, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(dat)
 }
 
 func handlerHealthz(w http.ResponseWriter, req *http.Request) {
