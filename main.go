@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,20 +10,36 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/wjseele/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func main() {
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Printf("Error connnecting to database: %s", err)
+		os.Exit(1)
+	}
+
+	dbQueries := database.New(db)
+
 	serveMux := http.NewServeMux()
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: serveMux,
 	}
-	apiCfg := apiConfig{}
-	apiCfg.fileserverHits.Store(0)
+	apiCfg := apiConfig{
+		dbQueries: dbQueries,
+	}
 
 	serveMux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("GET /api/healthz", handlerHealthz)
@@ -30,7 +47,7 @@ func main() {
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
