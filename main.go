@@ -22,20 +22,21 @@ func main() {
 	apiCfg.fileserverHits.Store(0)
 
 	serveMux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
-	serveMux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		_, err := io.WriteString(w, "OK")
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	})
-
-	serveMux.HandleFunc("/metrics", apiCfg.handlerCounter)
-	serveMux.HandleFunc("/reset", apiCfg.handlerReset)
+	serveMux.HandleFunc("GET /healthz", handlerHealthz)
+	serveMux.HandleFunc("GET /metrics", apiCfg.handlerCounter)
+	serveMux.HandleFunc("POST /reset", apiCfg.handlerReset)
 
 	err := server.ListenAndServe()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func handlerHealthz(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, err := io.WriteString(w, "OK")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
