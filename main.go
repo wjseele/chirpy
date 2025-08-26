@@ -51,6 +51,7 @@ func main() {
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	serveMux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	serveMux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	serveMux.HandleFunc("GET /api/chirps", apiCfg.handlerGetAllChirps)
 
 	err = server.ListenAndServe()
 	if err != nil {

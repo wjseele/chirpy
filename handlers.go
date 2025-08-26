@@ -21,6 +21,18 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type chirpResponse struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+type chirpResponses struct {
+	Responses []chirpResponse
+}
+
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		cfg.fileserverHits.Store(cfg.fileserverHits.Add(1))
@@ -53,14 +65,6 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	type chirpPost struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
-	}
-
-	type chirpResponse struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body      string    `json:"body"`
-		UserID    uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -106,6 +110,27 @@ func badWordFilter(s string) string {
 	}
 	cleanedBody := strings.Join(bodyWords, " ")
 	return cleanedBody
+}
+
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
+	response, err := cfg.dbQueries.GetAllChirps(req.Context())
+	if err != nil {
+		respondWithError(w, 500, fmt.Sprintf("%s", err))
+	}
+
+	resp := chirpResponses{}
+	for i := range response {
+		chirp := chirpResponse{
+			ID:        response[i].ID,
+			CreatedAt: response[i].CreatedAt,
+			UpdatedAt: response[i].UpdatedAt,
+			Body:      response[i].Body,
+			UserID:    response[i].UserID,
+		}
+		resp.Responses = append(resp.Responses, chirp)
+	}
+
+	respondWithJSON(w, 200, resp)
 }
 
 func handlerHealthz(w http.ResponseWriter, req *http.Request) {
