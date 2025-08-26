@@ -1,2 +1,2 @@
 -- name: ResetDB :exec
-DELETE FROM users;
+TRUNCATE users, chirps;

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wjseele/chirpy/internal/database"
 )
 
 type User struct {
@@ -48,44 +49,51 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(dat)
 }
 
-func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
 	type chirpPost struct {
-		Body string `json:"body"`
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
 	type chirpResponse struct {
-		CleanedBody string `json:"cleaned_body"`
-		Error       string `json:"error"`
-		Valid       bool   `json:"valid"`
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
 	post := chirpPost{}
 	err := decoder.Decode(&post)
 	if err != nil {
-		resp := chirpResponse{
-			Error: fmt.Sprint(err),
-			Valid: false,
-		}
-		respondWithJSON(w, 500, resp)
+		respondWithError(w, 500, fmt.Sprintf("%s", err))
 		return
 	}
 
 	if len(post.Body) > 140 {
-		resp := chirpResponse{
-			Error: "Chirp is too long",
-			Valid: false,
-		}
-		respondWithJSON(w, 400, resp)
+		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
 
 	cleanedBody := badWordFilter(post.Body)
+	newChirp := database.CreateChirpParams{
+		Body:   cleanedBody,
+		UserID: post.UserID,
+	}
+	response, err := cfg.dbQueries.CreateChirp(req.Context(), newChirp)
+	if err != nil {
+		respondWithError(w, 500, fmt.Sprintf("%s", err))
+	}
 
 	resp := chirpResponse{
-		CleanedBody: cleanedBody,
+		ID:        response.ID,
+		CreatedAt: response.CreatedAt,
+		UpdatedAt: response.UpdatedAt,
+		Body:      response.Body,
+		UserID:    response.UserID,
 	}
-	respondWithJSON(w, 200, resp)
+	respondWithJSON(w, 201, resp)
 }
 
 func badWordFilter(s string) string {
