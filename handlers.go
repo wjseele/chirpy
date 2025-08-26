@@ -88,6 +88,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	response, err := cfg.dbQueries.CreateChirp(req.Context(), newChirp)
 	if err != nil {
 		respondWithError(w, 500, fmt.Sprintf("%s", err))
+		return
 	}
 
 	resp := chirpResponse{
@@ -116,6 +117,7 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 	response, err := cfg.dbQueries.GetAllChirps(req.Context())
 	if err != nil {
 		respondWithError(w, 500, fmt.Sprintf("%s", err))
+		return
 	}
 
 	resp := chirpResponses{}
@@ -130,17 +132,19 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 		resp.Responses = append(resp.Responses, chirp)
 	}
 
-	respondWithJSON(w, 200, resp)
+	respondWithJSON(w, 200, resp.Responses)
 }
 
 func (cfg *apiConfig) handlerGetSpecificChirp(w http.ResponseWriter, req *http.Request) {
-	chirpID, err := uuid.Parse(req.PathValue("{chirpID}"))
+	chirpID, err := uuid.Parse(req.PathValue("chirpID"))
 	if err != nil {
 		respondWithError(w, 404, fmt.Sprintf("%s", err))
+		return
 	}
 	response, err := cfg.dbQueries.GetSpecificChirp(req.Context(), chirpID)
 	if err != nil {
 		respondWithError(w, 404, fmt.Sprintf("%s", err))
+		return
 	}
 
 	resp := chirpResponse{
