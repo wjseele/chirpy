@@ -133,6 +133,26 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 	respondWithJSON(w, 200, resp)
 }
 
+func (cfg *apiConfig) handlerGetSpecificChirp(w http.ResponseWriter, req *http.Request) {
+	chirpID, err := uuid.Parse(req.PathValue("{chirpID}"))
+	if err != nil {
+		respondWithError(w, 404, fmt.Sprintf("%s", err))
+	}
+	response, err := cfg.dbQueries.GetSpecificChirp(req.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, 404, fmt.Sprintf("%s", err))
+	}
+
+	resp := chirpResponse{
+		ID:        response.ID,
+		CreatedAt: response.CreatedAt,
+		UpdatedAt: response.UpdatedAt,
+		Body:      response.Body,
+		UserID:    response.UserID,
+	}
+	respondWithJSON(w, 200, resp)
+}
+
 func handlerHealthz(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
