@@ -10,7 +10,7 @@ import (
 )
 
 const resetDB = `-- name: ResetDB :exec
-TRUNCATE users, chirps
+TRUNCATE users, chirps, refresh_tokens
 `
 
 func (q *Queries) ResetDB(ctx context.Context) error {

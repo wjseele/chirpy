@@ -16,11 +16,12 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 type chirpResponse struct {
@@ -256,9 +257,8 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 
 func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request) {
 	type userLogin struct {
-		Password         string `json:"password"`
-		Email            string `json:"email"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -280,24 +280,78 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	if user.ExpiresInSeconds < 2 || user.ExpiresInSeconds > 3600 {
-		user.ExpiresInSeconds = int(time.Duration(time.Hour))
-	} else {
-		user.ExpiresInSeconds = user.ExpiresInSeconds * int(time.Second)
+	token, err := auth.MakeJWT(dbUser.ID, cfg.tokenSecret, time.Duration(time.Hour))
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
 	}
 
-	token, err := auth.MakeJWT(dbUser.ID, cfg.tokenSecret, time.Duration(user.ExpiresInSeconds))
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	newRefreshToken := database.CreateRefreshTokenParams{
+		Token:  refreshToken,
+		UserID: dbUser.ID,
+	}
+
+	freshToken, err := cfg.dbQueries.CreateRefreshToken(req.Context(), newRefreshToken)
 	if err != nil {
 		respondWithError(w, 400, fmt.Sprintf("%s", err))
 		return
 	}
 
 	resp := User{
-		ID:        dbUser.ID,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
-		Email:     dbUser.Email,
-		Token:     token,
+		ID:           dbUser.ID,
+		CreatedAt:    dbUser.CreatedAt,
+		UpdatedAt:    dbUser.UpdatedAt,
+		Email:        dbUser.Email,
+		Token:        token,
+		RefreshToken: freshToken,
 	}
 	respondWithJSON(w, 200, resp)
+}
+
+func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, req *http.Request) {
+	refreshToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	userID, err := cfg.dbQueries.GetUserFromRefreshToken(req.Context(), refreshToken)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	resp, err := auth.MakeJWT(userID, cfg.tokenSecret, time.Hour)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	response := User{
+		Token: resp,
+	}
+
+	respondWithJSON(w, 200, response)
+}
+
+func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, req *http.Request) {
+	refreshToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	err = cfg.dbQueries.RevokeRefreshToken(req.Context(), refreshToken)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	w.WriteHeader(204)
 }
