@@ -20,6 +20,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token"`
 }
 
 type chirpResponse struct {
@@ -68,19 +69,32 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 		UserID uuid.UUID `json:"user_id"`
 	}
 
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.tokenSecret)
+
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
 	decoder := json.NewDecoder(req.Body)
 	post := chirpPost{}
-	err := decoder.Decode(&post)
+	err = decoder.Decode(&post)
 	if err != nil {
 		respondWithError(w, 500, fmt.Sprintf("%s", err))
 		return
 	}
+	post.UserID = userID
 
 	if len(post.Body) > 140 {
 		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-
 	cleanedBody := badWordFilter(post.Body)
 	newChirp := database.CreateChirpParams{
 		Body:   cleanedBody,
@@ -242,8 +256,9 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 
 func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request) {
 	type userLogin struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password         string `json:"password"`
+		Email            string `json:"email"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -265,11 +280,24 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	if user.ExpiresInSeconds < 2 || user.ExpiresInSeconds > 3600 {
+		user.ExpiresInSeconds = int(time.Duration(time.Hour))
+	} else {
+		user.ExpiresInSeconds = user.ExpiresInSeconds * int(time.Second)
+	}
+
+	token, err := auth.MakeJWT(dbUser.ID, cfg.tokenSecret, time.Duration(user.ExpiresInSeconds))
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
 	resp := User{
 		ID:        dbUser.ID,
 		CreatedAt: dbUser.CreatedAt,
 		UpdatedAt: dbUser.UpdatedAt,
 		Email:     dbUser.Email,
+		Token:     token,
 	}
 	respondWithJSON(w, 200, resp)
 }

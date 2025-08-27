@@ -17,6 +17,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	platform       string
+	tokenSecret    string
 }
 
 func main() {
@@ -27,6 +28,7 @@ func main() {
 	}
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	tokenSecret := os.Getenv("SECRET")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Printf("Error connnecting to database: %s", err)
@@ -41,8 +43,9 @@ func main() {
 		Handler: serveMux,
 	}
 	apiCfg := apiConfig{
-		dbQueries: dbQueries,
-		platform:  platform,
+		dbQueries:   dbQueries,
+		platform:    platform,
+		tokenSecret: tokenSecret,
 	}
 
 	serveMux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))

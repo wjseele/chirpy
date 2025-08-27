@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -84,6 +85,22 @@ func TestValidateJWT(t *testing.T) {
 	}
 
 	if testID != happyCase.testOutput.userID {
-		t.Errorf("Didn't get right ID: Got %v, expected %v", testID, happyCase.testOutput.userID)
+		t.Errorf("Didn't get correct ID: Got %v, expected %v", testID, happyCase.testOutput.userID)
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	input := http.Header{}
+	input = make(http.Header)
+
+	input.Add("Authorization", "Bearer wobbles   ")
+
+	output, err := GetBearerToken(input)
+	if err != nil {
+		t.Errorf("Error generated: Got %v, expected nil", err)
+	}
+
+	if output != "wobbles" {
+		t.Errorf("Didn't get correct string: Got %s, expected wobbles", output)
 	}
 }
