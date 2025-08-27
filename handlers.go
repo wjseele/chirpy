@@ -355,3 +355,63 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, req *http.Request) {
 
 	w.WriteHeader(204)
 }
+
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request) {
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.tokenSecret)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	type passWordChange struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	newPass := passWordChange{}
+	err = decoder.Decode(&newPass)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(newPass.Password)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	passChange := database.UpdateUserParams{
+		Email:          newPass.Email,
+		HashedPassword: hashedPassword,
+		ID:             userID,
+	}
+
+	err = cfg.dbQueries.UpdateUser(req.Context(), passChange)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	newData, err := cfg.dbQueries.GetUserByEmail(req.Context(), newPass.Email)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	resp := User{
+		Email:     newData.Email,
+		ID:        newData.ID,
+		CreatedAt: newData.CreatedAt,
+		UpdatedAt: newData.UpdatedAt,
+	}
+
+	respondWithJSON(w, 200, resp)
+}
