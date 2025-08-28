@@ -60,6 +60,7 @@ func main() {
 	serveMux.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
 	serveMux.HandleFunc("GET /api/chirps", apiCfg.handlerGetAllChirps)
 	serveMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetSpecificChirp)
+	serveMux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
 
 	err = server.ListenAndServe()
 	if err != nil {

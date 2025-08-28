@@ -415,3 +415,42 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request
 
 	respondWithJSON(w, 200, resp)
 }
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	chirpID, err := uuid.Parse(req.PathValue("chirpID"))
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.tokenSecret)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	response, err := cfg.dbQueries.GetSpecificChirp(req.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, 404, fmt.Sprintf("%s", err))
+		return
+	}
+
+	if userID != response.UserID {
+		w.WriteHeader(403)
+		return
+	}
+
+	err = cfg.dbQueries.DeleteChirp(req.Context(), response.ID)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
+	w.WriteHeader(204)
+}
