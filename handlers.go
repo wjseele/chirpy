@@ -460,6 +460,16 @@ func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Reques
 }
 
 func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, req *http.Request) {
+	apiKey, err := auth.GetPolkaToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+	if apiKey != cfg.polkaKey {
+		respondWithError(w, 401, fmt.Sprintf("%s", err))
+		return
+	}
+
 	type data struct {
 		UserID string `json:"user_id"`
 	}
@@ -471,7 +481,7 @@ func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, req *http.Reques
 
 	decoder := json.NewDecoder(req.Body)
 	upgradeRequest := upgrade{}
-	err := decoder.Decode(&upgradeRequest)
+	err = decoder.Decode(&upgradeRequest)
 	if err != nil {
 		respondWithError(w, 400, fmt.Sprintf("%s", err))
 		return

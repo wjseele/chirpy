@@ -80,3 +80,13 @@ func MakeRefreshToken() (string, error) {
 	keyString := hex.EncodeToString(key)
 	return keyString, nil
 }
+
+func GetPolkaToken(headers http.Header) (string, error) {
+	tokenString := headers.Get("Authorization")
+	if tokenString == "" {
+		return "", fmt.Errorf("didn't find a authorization or tokenstring")
+	}
+	tokenString = strings.TrimPrefix(tokenString, "ApiKey")
+	tokenString = strings.Trim(tokenString, " ")
+	return tokenString, nil
+}
