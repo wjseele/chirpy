@@ -131,12 +131,30 @@ func badWordFilter(s string) string {
 }
 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
-	response, err := cfg.dbQueries.GetAllChirps(req.Context())
-	if err != nil {
-		respondWithError(w, 500, fmt.Sprintf("%s", err))
-		return
+	authorID := req.URL.Query().Get("author_id")
+	if len(authorID) > 0 {
+		userID, err := uuid.Parse(authorID)
+		if err != nil {
+			respondWithError(w, 500, fmt.Sprintf("%s", err))
+			return
+		}
+		response, err := cfg.dbQueries.GetAuthorChirps(req.Context(), userID)
+		if err != nil {
+			respondWithError(w, 500, fmt.Sprintf("%s", err))
+			return
+		}
+		responseHandler(w, response)
+	} else {
+		response, err := cfg.dbQueries.GetAllChirps(req.Context())
+		if err != nil {
+			respondWithError(w, 500, fmt.Sprintf("%s", err))
+			return
+		}
+		responseHandler(w, response)
 	}
+}
 
+func responseHandler(w http.ResponseWriter, response []database.Chirp) {
 	resp := chirpResponses{}
 	for i := range response {
 		chirp := chirpResponse{
