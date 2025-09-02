@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -132,6 +133,10 @@ func badWordFilter(s string) string {
 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
 	authorID := req.URL.Query().Get("author_id")
+	order := req.URL.Query().Get("sort")
+	if order != "desc" {
+		order = "asc"
+	}
 	if len(authorID) > 0 {
 		userID, err := uuid.Parse(authorID)
 		if err != nil {
@@ -143,12 +148,18 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 			respondWithError(w, 500, fmt.Sprintf("%s", err))
 			return
 		}
+		if order == "desc" {
+			sort.Slice(response, func(i, j int) bool { return response[i].CreatedAt.After(response[j].CreatedAt) })
+		}
 		responseHandler(w, response)
 	} else {
 		response, err := cfg.dbQueries.GetAllChirps(req.Context())
 		if err != nil {
 			respondWithError(w, 500, fmt.Sprintf("%s", err))
 			return
+		}
+		if order == "desc" {
+			sort.Slice(response, func(i, j int) bool { return response[i].CreatedAt.After(response[j].CreatedAt) })
 		}
 		responseHandler(w, response)
 	}
