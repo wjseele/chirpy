@@ -61,6 +61,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps", apiCfg.handlerGetAllChirps)
 	serveMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetSpecificChirp)
 	serveMux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
+	serveMux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerUpgradeUser)
 
 	err = server.ListenAndServe()
 	if err != nil {

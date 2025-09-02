@@ -22,6 +22,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 type chirpResponse struct {
@@ -247,10 +248,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 	jsonResponse := User{
-		ID:        response.ID,
-		CreatedAt: response.CreatedAt,
-		UpdatedAt: response.UpdatedAt,
-		Email:     response.Email,
+		ID:          response.ID,
+		CreatedAt:   response.CreatedAt,
+		UpdatedAt:   response.UpdatedAt,
+		Email:       response.Email,
+		IsChirpyRed: response.IsChirpyRed,
 	}
 	respondWithJSON(w, 201, jsonResponse)
 }
@@ -310,6 +312,7 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request)
 		Email:        dbUser.Email,
 		Token:        token,
 		RefreshToken: freshToken,
+		IsChirpyRed:  dbUser.IsChirpyRed,
 	}
 	respondWithJSON(w, 200, resp)
 }
@@ -407,10 +410,11 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request
 	}
 
 	resp := User{
-		Email:     newData.Email,
-		ID:        newData.ID,
-		CreatedAt: newData.CreatedAt,
-		UpdatedAt: newData.UpdatedAt,
+		Email:       newData.Email,
+		ID:          newData.ID,
+		CreatedAt:   newData.CreatedAt,
+		UpdatedAt:   newData.UpdatedAt,
+		IsChirpyRed: newData.IsChirpyRed,
 	}
 
 	respondWithJSON(w, 200, resp)
@@ -452,5 +456,41 @@ func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
+	w.WriteHeader(204)
+}
+
+func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, req *http.Request) {
+	type data struct {
+		UserID string `json:"user_id"`
+	}
+
+	type upgrade struct {
+		Event string `json:"event"`
+		Data  data   `json:"data"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	upgradeRequest := upgrade{}
+	err := decoder.Decode(&upgradeRequest)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+
+	if upgradeRequest.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+
+	userID, err := uuid.Parse(upgradeRequest.Data.UserID)
+	if err != nil {
+		respondWithError(w, 400, fmt.Sprintf("%s", err))
+		return
+	}
+	err = cfg.dbQueries.UpgradeToRed(req.Context(), userID)
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
 	w.WriteHeader(204)
 }
